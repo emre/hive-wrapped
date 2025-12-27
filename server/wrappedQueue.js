@@ -2,6 +2,7 @@ import { hiveClient } from './utils.js';
 import { normalizeUsername } from './utils.js';
 import { SPAM_USERS } from './constants.js';
 import { computeWrapped } from './compute.js';
+import { fetchMuteList } from './operations.js';
 import pg from 'pg';
 
 const { Pool } = pg;

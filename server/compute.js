@@ -1,9 +1,13 @@
 import { hiveClient, addAsset } from './utils.js';
-import { processComment, processVote, processReward, processClaim, processSnapPost, hasGoodReputation } from './operations.js';
+import { processComment, processVote, processReward, processClaim, processSnapPost, fetchMuteList } from './operations.js';
 import { SPAM_USERS } from './constants.js';
 
 export async function computeWrapped(username, from = new Date('2025-01-01'), to = new Date('2026-01-01')) {
   console.log(`[compute] Starting wrapped computation for @${username} from ${from.toISOString()} to ${to.toISOString()}`);
+
+  // Fetch user's mute list (single call per report)
+  const muteSet = await fetchMuteList(username);
+  console.log(`[compute] Fetched mute list for @${username}, muted users: ${muteSet.size}`);
 
   // Initialize counters
   let posts = 0;
@@ -99,7 +103,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
         // Process operations using dedicated handlers
         if (opType === 'comment') {
-          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions);
+          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions, muteSet);
           posts += result.posts;  
           comments += result.comments;
           totalCommentsOnPosts += result.totalCommentsOnPosts;
