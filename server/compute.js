@@ -1,5 +1,6 @@
 import { hiveClient, addAsset } from './utils.js';
-import { processComment, processVote, processReward, processClaim, processSnapPost } from './operations.js';
+import { processComment, processVote, processReward, processClaim, processSnapPost, hasGoodReputation } from './operations.js';
+import { SPAM_USERS } from './constants.js';
 
 export async function computeWrapped(username, from = new Date('2025-01-01'), to = new Date('2026-01-01')) {
   console.log(`[compute] Starting wrapped computation for @${username} from ${from.toISOString()} to ${to.toISOString()}`);
@@ -24,6 +25,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   const topVotedAuthors = new Map();
   const topDownvotedAuthors = new Map();
   const topBuddies = new Map();
+  const mutualInteractions = new Map(); // Track mutual interactions for filtering
   const snapPosts = new Set(); // Track Snap posts
   let comments = 0;
   let downvotes = 0;
@@ -97,7 +99,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
         // Process operations using dedicated handlers
         if (opType === 'comment') {
-          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts);
+          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions);
           posts += result.posts;  
           comments += result.comments;
           totalCommentsOnPosts += result.totalCommentsOnPosts;
@@ -167,11 +169,22 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
     .slice(0, 5)
     .map(([author, count]) => ({ author, votes: count }));
   
-  // Top 5 buddies from Map (more memory efficient)
-  const topCommentedAuthors = Array.from(topBuddies.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([author, count]) => ({ author, comments: count }));
+  // Top 5 buddies from Map (more memory efficient) - include all users
+  const topCommentedAuthors = [];
+  
+  for (const [author, count] of topBuddies.entries()) {
+    // Check if not in spam list
+    if (SPAM_USERS.has(author.toLowerCase())) {
+      continue;
+    }
+    
+    // Add all users (no reputation check)
+    topCommentedAuthors.push({ author, count });
+  }
+  
+  // Sort by interaction count
+  topCommentedAuthors.sort((a, b) => b.count - a.count);
+  const finalBuddies = topCommentedAuthors.slice(0, 5).map(({ author, count }) => ({ author, comments: count }));
   
   const topDownvotedAuthor = Array.from(topDownvotedAuthors.entries())
     .sort((a, b) => b[1] - a[1])[0] || null;
@@ -245,7 +258,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
     // Story insights
     busiestMonth: busiestMonth ? { month: busiestMonth[0], posts: busiestMonth[1] } : null,
     topVotedAuthors: topVotedAuthorsList,
-    topCommentedAuthors,
+    topCommentedAuthors: finalBuddies,
     topDownvotedAuthor: topDownvotedAuthor ? { author: topDownvotedAuthor[0], downvotes: topDownvotedAuthor[1] } : null,
     // New metrics
     uniqueTagsCount,
