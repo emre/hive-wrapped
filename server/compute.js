@@ -127,10 +127,8 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
           
           // Track post rewards separately (only author_reward counts as post rewards)
           if (opType === 'author_reward') {
-            console.log(`[compute] Processing author_reward for @${username}:`, opValue);
             addAsset(postRewards, opValue?.hbd_payout);
             addAsset(postRewards, opValue?.vesting_payout);
-            console.log(`[compute] Post rewards after update:`, postRewards);
           }
         } else if (opType === 'claim_reward_balance') {
           claimEvents += processClaim();
