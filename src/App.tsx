@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { BadgeCheck, Loader2, Home } from 'lucide-react';
 import { fetchHiveWrapped2025, validateUsername, type HiveWrappedStats } from './services/hive';
-import logo from '../logo.png';
+import logo from './assets/logo.png';
 import Story from './components/Story';
 import UserPage from './components/UserPage';
 

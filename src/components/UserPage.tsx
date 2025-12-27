@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { fetchHiveWrapped2025, type HiveWrappedStats } from '../services/hive';
+import { BadgeCheck, Loader2, Home, XCircle, Clock, CheckCircle } from 'lucide-react';
+import { fetchHiveWrapped2025, validateUsername, type HiveWrappedStats } from '../services/hive';
+import logo from '../assets/logo.png';
 import Story from './Story';
 
 type JobStatus = 'queued' | 'running' | 'done' | 'error';
@@ -103,7 +104,7 @@ export default function UserPage() {
         <div className="mx-auto max-w-5xl px-6 py-10">
           <div className="flex items-center gap-3 mb-8">
             <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <img src="/logo.png" alt="Hive Wrapped 2025" className="w-10 h-10" />
+              <img src={logo} alt="Hive Wrapped 2025" className="w-10 h-10" />
               <h1 className="text-2xl font-bold">Hive Wrapped 2025</h1>
             </a>
             <span className="text-hive-grey">|</span>
@@ -119,7 +120,7 @@ export default function UserPage() {
     <div className="min-h-screen bg-gradient-to-b from-hive-black to-hive-black text-white flex items-center justify-center">
       <div className="text-center">
         <div className="mb-8">
-          <img src="/logo.png" alt="Hive Wrapped 2025" className="w-32 h-32 mx-auto mb-4" />
+          <img src={logo} alt="Hive Wrapped 2025" className="w-32 h-32 mx-auto mb-4" />
           <h1 className="text-4xl font-bold mb-2">@{username}</h1>
           <p className="text-hive-grey">Hive Wrapped 2025</p>
         </div>
