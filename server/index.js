@@ -5,10 +5,7 @@ import {
   enqueueJob,
   getJobStatus as getJob,
 } from './database.js';
-import {
-  enqueueOrGetJob,
-  getWrappedStats,
-} from './api.js';
+import { enqueueOrGetJob, getCached, upsertCache } from './wrappedQueue.js';
 import { computeWrapped } from './compute.js';
 import { withDb, normalizeUsername } from './utils.js';
 
@@ -107,6 +104,33 @@ app.get('/api/wrapped', async (req, res) => {
     await upsertCache(username, data);
 
     res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// Public endpoint to remove user's report from cache
+app.get('/api/delete-cache/:username', async (req, res) => {
+  const username = normalizeUsername(req.params.username);
+  if (!username) return res.status(400).json({ error: 'Missing username' });
+
+  try {
+    const result = await withDb(async (db) => {
+      const deleteResult = await db.query(
+        'DELETE FROM wrapped_cache WHERE username = $1 RETURNING *',
+        [username]
+      );
+      return {
+        deleted: deleteResult.rowCount,
+        username: username
+      };
+    });
+
+    if (result.deleted === 0) {
+      return res.json({ message: 'No cached report found for this user', username });
+    }
+
+    res.json({ message: 'Cached report removed successfully', ...result });
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }

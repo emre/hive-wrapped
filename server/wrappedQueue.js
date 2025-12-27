@@ -1,7 +1,8 @@
 import { hiveClient } from './utils.js';
-import { withDb, normalizeUsername } from './utils.js';
+import { normalizeUsername } from './utils.js';
 import { SPAM_USERS } from './constants.js';
 import { computeWrapped } from './compute.js';
+import pg from 'pg';
 
 const { Pool } = pg;
 export const pool = new Pool({
@@ -58,10 +59,6 @@ export async function migrate() {
     `);
     await db.query('CREATE INDEX IF NOT EXISTS wrapped_cache_expires_at_idx ON wrapped_cache(expires_at)');
   });
-}
-
-export function normalizeUsername(raw) {
-  return String(raw || '').trim().replace(/^@/, '');
 }
 
 function parseAssetAmount(asset) {
@@ -191,7 +188,7 @@ export async function upsertCache(username, result, periodFrom = '2025-01-01', p
     db.query(
       `
         INSERT INTO wrapped_cache(username, period_from, period_to, expires_at, result)
-        VALUES ($1, $2, $3, now() + interval '15 minutes', $4::jsonb)
+        VALUES ($1, $2, $3, now() + interval '1 day', $4::jsonb)
         ON CONFLICT (username, period_from, period_to)
         DO UPDATE SET expires_at = EXCLUDED.expires_at, result = EXCLUDED.result
       `,
@@ -253,7 +250,7 @@ export async function completeJob(jobId, result, username, periodFrom, periodTo)
     await db.query(
       `
         INSERT INTO wrapped_cache(username, period_from, period_to, expires_at, result)
-        VALUES ($1, $2, $3, now() + interval '15 minutes', $4::jsonb)
+        VALUES ($1, $2, $3, now() + interval '1 day', $4::jsonb)
         ON CONFLICT (username, period_from, period_to)
         DO UPDATE SET expires_at = EXCLUDED.expires_at, result = EXCLUDED.result
       `,
