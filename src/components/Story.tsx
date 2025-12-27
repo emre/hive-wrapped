@@ -299,16 +299,16 @@ function UniqueTagsSlide({ stats }: SlideProps) {
           <div className="space-y-1 mb-4">
             <div className="text-hive-grey text-xs mb-2">Top Tags:</div>
             {stats.topCommunities.slice(0, 5).map((tag, index) => (
-              <div key={tag.tag} className="flex items-center justify-between text-xs">
+              <div key={tag.community} className="flex items-center justify-between text-xs">
                 <a 
-                  href={`https://hive.blog/created/${tag.tag}`}
+                  href={`https://hive.blog/created/${tag.community}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-hive-grey hover:text-white transition-colors"
                 >
-                  #{tag.tag}
+                  #{tag.community}
                 </a>
-                <span className="text-white font-medium">{tag.count}</span>
+                <span className="text-white font-medium">{tag.posts}</span>
               </div>
             ))}
           </div>

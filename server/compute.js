@@ -183,7 +183,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   const topCommunities = Array.from(topTags.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([tag, count]) => ({ tag, count }));
+    .map(([tag, count]) => ({ community: tag, posts: count }));
   
   // Calculate posting streak
   const sortedDays = Array.from(postsByDay.keys()).sort();
