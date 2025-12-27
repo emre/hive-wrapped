@@ -1,5 +1,6 @@
 import { Client } from '@hiveio/dhive';
 import pg from 'pg';
+import 'dotenv/config';
 
 // Hive client
 export const hiveClient = new Client(['https://api.deathwing.me']);

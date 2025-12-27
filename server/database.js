@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { withDb } from './utils.js';
 
 // Generate simple unique ID
