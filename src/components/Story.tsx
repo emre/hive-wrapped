@@ -271,21 +271,29 @@ function DownvotesSlide({ stats }: SlideProps) {
 }
 
 function RewardsSlide({ stats }: SlideProps) {
+  const message = stats.totalHbd > 100 || stats.totalHp > 1000
+    ? "Congrats, you're raking it in!" 
+    : stats.totalHbd > 10 || stats.totalHp > 100
+    ? "Your content paid off!" 
+    : stats.totalHbd > 1 || stats.totalHp > 10
+    ? "Money isn't everything!"
+    : "Better luck next year!";
+
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-8">
       <div className="rounded-3xl bg-white/5 backdrop-blur border border-white/10 p-8 w-full max-w-sm">
         <div className="text-green-300 text-sm uppercase tracking-wider mb-4">Rewards Earned</div>
-        <div className="text-4xl font-bold text-white mb-2">{fmt(stats.totalHbd, 3)} HBD</div>
-        <div className="text-3xl font-bold text-green-400">{fmt(stats.totalHp, 3)} HP</div>
+        <div className="text-4xl font-bold text-white mb-2">{fmt(stats.totalHbd, 2)} HBD</div>
+        <div className="text-3xl font-bold text-green-400">{fmt(stats.totalHp, 2)} HP</div>
         <div className="flex items-center justify-center gap-2 mt-6 text-green-400 text-xl font-semibold">
           <Wallet className="w-6 h-6" />
           Total Earnings
         </div>
-        <p className="text-purple-200/70 mt-4">Your content paid off!</p>
+        <p className="text-purple-200/70 mt-4">{message}</p>
       </div>
     </div>
   );
-}
+}	
 
 function UniqueTagsSlide({ stats }: SlideProps) {
   return (
