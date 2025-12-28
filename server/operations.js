@@ -42,7 +42,7 @@ async function fetchMuteList(username) {
 export { fetchMuteList };
 
 // Process comment operations
-export function processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions = null, muteSet = null) {
+export function processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions = null, muteSet = null, timestamp = null) {
   if (!opValue || typeof opValue.parent_author !== 'string') return { posts: 0, comments: 0, totalCommentsOnPosts: 0 };
   
   let postsDelta = 0;
@@ -54,8 +54,8 @@ export function processComment(opValue, username, monthKey, postsByMonth, postsB
     postsDelta = 1;
     postsByMonth[monthKey] = (postsByMonth[monthKey] || 0) + 1;
     
-    // Track posts per day (for streak) - use date string as key
-    const ts = new Date(opValue.timestamp || Date.now());
+    // Track posts per day (for streak) - use the passed timestamp
+    const ts = timestamp || new Date();
     const dayKey = ts.toISOString().split('T')[0]; // YYYY-MM-DD
     postsByDay.set(dayKey, (postsByDay.get(dayKey) || 0) + 1);
     

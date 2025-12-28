@@ -60,8 +60,17 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   // Get the latest operation index to start pagination
   const latestHistory = await hiveClient.database.getAccountHistory(username, -1, 1);
   if (latestHistory.length > 0) {
-    start = latestHistory[0][0]; // Start from the latest operation index
-    console.log(`[compute] Starting pagination for @${username} from index ${start}`);
+    const latestOp = latestHistory[0];
+    const latestTs = new Date(latestOp[1].timestamp);
+    
+    // Check if the latest operation is before our target date range
+    if (latestTs < from) {
+      console.log(`[compute] @${username} latest operation from ${latestTs.toISOString()} is before 2025, no data to process`);
+      return { stats: null, error: 'No operations found in 2025' };
+    }
+    
+    start = latestOp[0]; // Start from the latest operation index
+    console.log(`[compute] Starting pagination for @${username} from index ${start} (${latestTs.toISOString()})`);
   } else {
     console.log(`[compute] No account history found for @${username}`);
     return { stats: null, error: 'No account history found' };
@@ -107,6 +116,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
         if (ts < from) {
           reachedBefore2025 = true;
+
           continue;
         }
         if (ts >= to) continue;
@@ -116,7 +126,10 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
         // Process operations using dedicated handlers
         if (opType === 'comment') {
-          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions, muteSet);
+          if (username === 'jesta') {
+            console.log(`[compute] @${username} Processing comment operation from ${ts.toISOString()}:`, JSON.stringify(opValue, null, 2));
+          }
+          const result = processComment(opValue, username, monthKey, postsByMonth, postsByDay, tagsUsed, topTags, comments, topBuddies, totalCommentsOnPosts, mutualInteractions, muteSet, ts);
           posts += result.posts;  
           comments += result.comments;
           totalCommentsOnPosts += result.totalCommentsOnPosts;
@@ -189,12 +202,16 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
       batchStart += concurrency;
       
       // Debug log to track pagination progress
-      console.log(`[compute] Batch ${batchStart/concurrency}: Updated start to ${start}, minIndexInBatch was ${minIndexInBatch}`);
+      console.log(`[compute] Batch ${batchStart/concurrency}: Updated start to ${start}, minIndexInBatch was ${minIndexInBatch}, reachedBefore2025: ${reachedBefore2025}`);
     } else {
+      console.log(`[compute] No valid pages in batch, stopping pagination`);
       break; // No valid pages in this batch
     }
 
-    if (reachedBefore2025) break;
+    if (reachedBefore2025) {
+      console.log(`[compute] Stopping pagination because reachedBefore2025 is true`);
+      break;
+    }
   }
 
   // Calculate story insights
@@ -239,22 +256,29 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   let currentStreak = 0;
   let prevDay = null;
   
+  console.log(`[compute] @${username} Calculating streak from ${sortedDays.length} days:`, sortedDays);
+  
   for (const day of sortedDays) {
     const dayDate = new Date(day);
     if (!prevDay) {
       currentStreak = 1;
+      console.log(`[compute] @${username} Starting streak with day ${day}, streak=${currentStreak}`);
     } else {
       const prevDate = new Date(prevDay);
       const diffDays = Math.floor((dayDate - prevDate) / (1000 * 60 * 60 * 24));
       if (diffDays === 1) {
         currentStreak += 1;
+        console.log(`[compute] @${username} Day ${day} is consecutive (diff=${diffDays}), streak=${currentStreak}`);
       } else {
         currentStreak = 1;
+        console.log(`[compute] @${username} Day ${day} breaks streak (diff=${diffDays}), reset streak=${currentStreak}`);
       }
     }
     longestStreak = Math.max(longestStreak, currentStreak);
     prevDay = day;
   }
+  
+  console.log(`[compute] @${username} Final streak: longest=${longestStreak}, postsByDay size=${postsByDay.size}`);
   
   console.log(`[compute] Finished scan for @${username} — total ops: ${scannedOps}, posts: ${posts}, votes: ${votes}`);
   console.log(`[compute] Totals — HBD: ${totals.HBD}, VESTS: ${totals.VESTS}`);
