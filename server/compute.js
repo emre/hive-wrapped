@@ -47,8 +47,9 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   const pageSize = 1000;
   const maxPages = 5000;
   const concurrency = 4;
-  let start = -1;
+  let start = -1; // Will be updated to latest operation index on first run
   let reachedBefore2025 = false;
+  let batchStart = 0;
 
   // Fetch global properties for VESTS to HP conversion
   const globalProps = await hiveClient.database.getDynamicGlobalProperties();
@@ -56,31 +57,44 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   const totalVestingShares = parseFloat(globalProps.total_vesting_shares.split(' ')[0]);
   const vestsToHpRatio = totalVestingFund / totalVestingShares;
 
-  // Process account history
-  for (let batchStart = 0; batchStart < maxPages; batchStart += concurrency) {
+  // Get the latest operation index to start pagination
+  const latestHistory = await hiveClient.database.getAccountHistory(username, -1, 1);
+  if (latestHistory.length > 0) {
+    start = latestHistory[0][0]; // Start from the latest operation index
+    console.log(`[compute] Starting pagination for @${username} from index ${start}`);
+  } else {
+    console.log(`[compute] No account history found for @${username}`);
+    return { stats: null, error: 'No account history found' };
+  }
+
+  // Process account history with concurrency
+  while (start >= 0 && batchStart < maxPages) {
     if (reachedBefore2025) break;
 
-    const pagePromises = [];
+    // Calculate the next batch of start indices (non-overlapping)
+    const batchStarts = [];
     for (let i = 0; i < concurrency && batchStart + i < maxPages; i++) {
-      pagePromises.push(
-        hiveClient.database.getAccountHistory(username, start - (i * pageSize), pageSize)
-      );
+      batchStarts.push(start - (i * pageSize));
     }
 
-    const pages = await Promise.all(pagePromises);
-    const batchStartPage = batchStart;
+    // Make concurrent requests
+    const pages = await Promise.all(
+      batchStarts.map(s => hiveClient.database.getAccountHistory(username, s, pageSize))
+    );
 
-    // Process pages sequentially to update start and count ops
+    // Process each page in the batch and find the oldest index
+    let minIndexInBatch = Infinity;
     for (let i = 0; i < pages.length; i++) {
       const history = pages[i];
-      if (!history.length) break;
+      if (!history.length) continue;
 
+      // Track the oldest index in this batch
       const oldestIndexInPage = history[0][0];
-      start = Math.max(oldestIndexInPage - 1, pageSize - 1);
+      minIndexInBatch = Math.min(minIndexInBatch, oldestIndexInPage);
 
       const oldestTs = history[0][1].timestamp;
       const newestTs = history[history.length - 1][1].timestamp;
-      const pageIdx = batchStartPage + i;
+      const pageIdx = batchStart + i;
 
       if ((pageIdx + 1) % 10 === 0 || pageIdx === 0) {
         console.log(`[compute] @${username} page ${pageIdx + 1}/${maxPages} — ops ${scannedOps + 1}-${scannedOps + history.length} — time range ${oldestTs} … ${newestTs}`);
@@ -88,7 +102,6 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
       for (const [, item] of history) {
         scannedOps += 1;
-
         const ts = new Date(item.timestamp);
         if (Number.isNaN(ts.getTime())) continue;
 
@@ -159,6 +172,26 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
       }
 
       if (reachedBefore2025) break;
+    }
+
+    // Update start for next batch using the minimum index from this batch
+    if (minIndexInBatch !== Infinity) {
+      // Start next batch from the oldest index found in this batch
+      const newStart = minIndexInBatch - 1;
+      
+      // Ensure start meets API constraint: start >= limit-1
+      if (newStart < pageSize - 1) {
+        console.log(`[compute] Reached start ${newStart} which is below limit ${pageSize - 1}, stopping pagination`);
+        break;
+      }
+      
+      start = newStart;
+      batchStart += concurrency;
+      
+      // Debug log to track pagination progress
+      console.log(`[compute] Batch ${batchStart/concurrency}: Updated start to ${start}, minIndexInBatch was ${minIndexInBatch}`);
+    } else {
+      break; // No valid pages in this batch
     }
 
     if (reachedBefore2025) break;
