@@ -46,7 +46,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
   const pageSize = 1000;
   const maxPages = 5000;
-  const concurrency = 4;
+  let concurrency = 4;
   let start = -1; // Will be updated to latest operation index on first run
   let reachedBefore2025 = false;
   let batchStart = 0;
@@ -71,6 +71,14 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
     
     start = latestOp[0]; // Start from the latest operation index
     console.log(`[compute] Starting pagination for @${username} from index ${start} (${latestTs.toISOString()})`);
+    
+    // If start is too low for concurrent requests, reduce concurrency
+    if (start < concurrency * pageSize) {
+      const maxConcurrentRequests = Math.floor(start / (pageSize - 1));
+      const actualConcurrency = Math.max(1, Math.min(concurrency, maxConcurrentRequests));
+      console.log(`[compute] @${username} start ${start} is too low for concurrency ${concurrency}, using concurrency ${actualConcurrency}`);
+      concurrency = actualConcurrency;
+    }
   } else {
     console.log(`[compute] No account history found for @${username}`);
     return { stats: null, error: 'No account history found' };
@@ -82,13 +90,17 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
 
     // Calculate the next batch of start indices (non-overlapping)
     const batchStarts = [];
+    
+    // Adjust pageSize if start is below 1000 to prevent API errors
+    const adjustedPageSize = start < 1000 ? start + 1 : pageSize;
+    
     for (let i = 0; i < concurrency && batchStart + i < maxPages; i++) {
-      batchStarts.push(start - (i * pageSize));
+      batchStarts.push(start - (i * adjustedPageSize));
     }
 
     // Make concurrent requests
     const pages = await Promise.all(
-      batchStarts.map(s => hiveClient.database.getAccountHistory(username, s, pageSize))
+      batchStarts.map(s => hiveClient.database.getAccountHistory(username, s, adjustedPageSize))
     );
 
     // Process each page in the batch and find the oldest index
@@ -202,7 +214,7 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
       batchStart += concurrency;
       
       // Debug log to track pagination progress
-      console.log(`[compute] Batch ${batchStart/concurrency}: Updated start to ${start}, minIndexInBatch was ${minIndexInBatch}, reachedBefore2025: ${reachedBefore2025}`);
+      console.log(`[compute] Batch ${Math.floor(batchStart/concurrency) + 1}: Updated start to ${start}, minIndexInBatch was ${minIndexInBatch}, reachedBefore2025: ${reachedBefore2025}`);
     } else {
       console.log(`[compute] No valid pages in batch, stopping pagination`);
       break; // No valid pages in this batch
@@ -256,29 +268,22 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
   let currentStreak = 0;
   let prevDay = null;
   
-  console.log(`[compute] @${username} Calculating streak from ${sortedDays.length} days:`, sortedDays);
-  
   for (const day of sortedDays) {
     const dayDate = new Date(day);
     if (!prevDay) {
       currentStreak = 1;
-      console.log(`[compute] @${username} Starting streak with day ${day}, streak=${currentStreak}`);
     } else {
       const prevDate = new Date(prevDay);
       const diffDays = Math.floor((dayDate - prevDate) / (1000 * 60 * 60 * 24));
       if (diffDays === 1) {
         currentStreak += 1;
-        console.log(`[compute] @${username} Day ${day} is consecutive (diff=${diffDays}), streak=${currentStreak}`);
       } else {
         currentStreak = 1;
-        console.log(`[compute] @${username} Day ${day} breaks streak (diff=${diffDays}), reset streak=${currentStreak}`);
       }
     }
     longestStreak = Math.max(longestStreak, currentStreak);
     prevDay = day;
   }
-  
-  console.log(`[compute] @${username} Final streak: longest=${longestStreak}, postsByDay size=${postsByDay.size}`);
   
   console.log(`[compute] Finished scan for @${username} — total ops: ${scannedOps}, posts: ${posts}, votes: ${votes}`);
   console.log(`[compute] Totals — HBD: ${totals.HBD}, VESTS: ${totals.VESTS}`);
