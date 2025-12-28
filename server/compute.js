@@ -91,6 +91,16 @@ export async function computeWrapped(username, from = new Date('2025-01-01'), to
     // Calculate the next batch of start indices (non-overlapping)
     const batchStarts = [];
     
+    // Adjust concurrency if current start is too low
+    if (start < concurrency * pageSize) {
+      const maxConcurrentRequests = Math.floor(start / (pageSize - 1));
+      const actualConcurrency = Math.max(1, Math.min(concurrency, maxConcurrentRequests));
+      if (actualConcurrency !== concurrency) {
+        console.log(`[compute] @${username} start ${start} is too low for concurrency ${concurrency}, reducing to ${actualConcurrency}`);
+        concurrency = actualConcurrency;
+      }
+    }
+    
     // Adjust pageSize if start is below 1000 to prevent API errors
     const adjustedPageSize = start < 1000 ? start + 1 : pageSize;
     
